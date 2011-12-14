@@ -237,12 +237,19 @@ class Chef::Application::Client < Chef::Application
 
     loop do
       begin
-        if Chef::Config[:splay]
+        #dont splay if socket told us to run
+        if Chef::Config[:splay] && !@single_recipe
           splay = rand Chef::Config[:splay]
           Chef::Log.debug("Splay sleep #{splay} seconds")
           sleep splay
         end
-        @chef_client = Chef::Client.new(@chef_client_json)
+        #if single recipe, create single recipe client
+        if @single_recipe
+          @chef_client = Chef::Client.new(@chef_client_json, [@single_recipe])
+          @single_recipe = nil
+        else
+          @chef_client = Chef::Client.new(@chef_client_json)
+        end
         @chef_client_json = nil
 
         @chef_client.run
@@ -291,6 +298,9 @@ class Chef::Application::Client < Chef::Application
   def client_sleep(sec)
     IO.select([ @socket_listener ], nil, nil, sec) or return
     server = @socket_listener.accept
-    server.read(LENGTH_SIZE).unpack('N').first
+    length = server.read(LENGTH_SIZE).unpack('N').first
+    unless length == 0
+      @single_recipe = server.read(length)
+    end
   end
 end
