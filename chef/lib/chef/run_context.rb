@@ -53,7 +53,7 @@ class Chef
       node.cookbook_collection = cookbook_collection
     end
 
-    def load(run_list_expansion)
+    def load(run_list_expansion, override_run_list=nil)
       load_libraries
       load_lwrp_providers
       load_lwrp_resources
@@ -66,7 +66,8 @@ class Chef
       # roles) to the node.
       @node.apply_expansion_attributes(run_list_expansion)
 
-      run_list_expansion.recipes.each do |recipe|
+      #if override runlist, only run that one
+      (override_run_list || run_list_expansion.recipes).each do |recipe|
         # TODO: timh/cw, 5-14-2010: It's distasteful to be including
         # the DSL in a class outside the context of the DSL
         include_recipe(recipe)

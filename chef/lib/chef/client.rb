@@ -124,8 +124,9 @@ class Chef
     attr_reader :run_status
 
     # Creates a new Chef::Client.
-    def initialize(json_attribs=nil)
+    def initialize(json_attribs=nil, manual_run_list=nil)
       @json_attribs = json_attribs
+      @manual_run_list = manual_run_list
       @node = nil
       @run_status = nil
       @runner = nil
@@ -193,7 +194,7 @@ class Chef
         run_context = Chef::RunContext.new(node, Chef::CookbookCollection.new(cookbook_hash))
       end
       run_status.run_context = run_context
-      run_context.load(@run_list_expansion)
+      run_context.load(@run_list_expansion, @manual_run_list)
       assert_cookbook_path_not_empty(run_context)
       run_context
     end
