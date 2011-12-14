@@ -185,7 +185,9 @@ class Chef
     run_command_stdout_timeout 120
     solo  false
     splay nil
+
     cleanup_file_cache true
+    client_socket_path "/var/run/chef/client_socket"
 
     # Set these to enable SSL authentication / mutual-authentication
     # with the server

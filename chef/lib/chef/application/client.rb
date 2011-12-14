@@ -212,17 +212,17 @@ class Chef::Application::Client < Chef::Application
     unless RUBY_PLATFORM =~ /mswin|mingw32|windows/
       # create control socket
       begin
-        @socket_listener = UNIXServer.new("/tmp/chef_socket")
+        @socket_listener = UNIXServer.new(Chef::Config[:client_socket_path])
       rescue Errno::EADDRINUSE
-        #TODO locking
-        Chef::Log.info("deleting /tmp/chef_socket")
-        FileUtils::rm("/tmp/chef_socket")
+        #TODO add locking on socket file so only one client can be active at once
+        Chef::Log.info("deleting #{Chef::Config[:client_socket_path]}")
+        FileUtils::rm(Chef::Config[:client_socket_path])
         retry
       end
 
       trap("USR1") do
         Chef::Log.info("SIGUSR1 received, waking up")
-        control_client = UNIXSocket.new("/tmp/chef_socket")
+        control_client = UNIXSocket.new(Chef::Config[:client_socket_path])
         control_client.putc([0].pack('N')) # wakeup master process from select
       end
     end
