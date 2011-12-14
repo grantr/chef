@@ -24,12 +24,10 @@ require 'chef/daemon'
 require 'chef/log'
 require 'chef/rest'
 require 'chef/handler/error_report'
+require 'socket'
 
 
 class Chef::Application::Client < Chef::Application
-
-  # Mimic self_pipe sleep from Unicorn to capture signals safely
-  SELF_PIPE = []
 
   option :config_file,
     :short => "-c CONFIG",
@@ -210,12 +208,22 @@ class Chef::Application::Client < Chef::Application
 
   # Run the chef client, optionally daemonizing or looping at intervals.
   def run_application
+    @socket_listener = nil
     unless RUBY_PLATFORM =~ /mswin|mingw32|windows/
-      SELF_PIPE.replace IO.pipe
+      # create control socket
+      begin
+        @socket_listener = UNIXServer.new("/tmp/chef_socket")
+      rescue Errno::EADDRINUSE
+        #TODO locking
+        Chef::Log.info("deleting /tmp/chef_socket")
+        FileUtils::rm("/tmp/chef_socket")
+        retry
+      end
 
       trap("USR1") do
         Chef::Log.info("SIGUSR1 received, waking up")
-        SELF_PIPE[1].putc('.') # wakeup master process from select
+        control_client = UNIXSocket.new("/tmp/chef_socket")
+        control_client.putc([0].pack('N')) # wakeup master process from select
       end
     end
 
@@ -241,7 +249,7 @@ class Chef::Application::Client < Chef::Application
         @chef_client = nil
         if Chef::Config[:interval]
           Chef::Log.debug("Sleeping for #{Chef::Config[:interval]} seconds")
-          unless SELF_PIPE.empty?
+          if @socket_listener
             client_sleep Chef::Config[:interval]
           else
             # Windows
@@ -260,7 +268,7 @@ class Chef::Application::Client < Chef::Application
           Chef::Log.error("#{e.class}: #{e}")
           Chef::Application.debug_stacktrace(e)
           Chef::Log.error("Sleeping for #{Chef::Config[:interval]} seconds before trying again")
-          unless SELF_PIPE.empty?
+          if @socket_listener
             client_sleep Chef::Config[:interval]
           else
             # Windows
@@ -279,8 +287,10 @@ class Chef::Application::Client < Chef::Application
 
   private
 
+  LENGTH_SIZE = [0].pack('N').size
   def client_sleep(sec)
-    IO.select([ SELF_PIPE[0] ], nil, nil, sec) or return
-    SELF_PIPE[0].getc
+    IO.select([ @socket_listener ], nil, nil, sec) or return
+    server = @socket_listener.accept
+    server.read(LENGTH_SIZE).unpack('N').first
   end
 end
