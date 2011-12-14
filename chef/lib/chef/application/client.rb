@@ -245,6 +245,7 @@ class Chef::Application::Client < Chef::Application
         end
         #if single recipe, create single recipe client
         if @single_recipe
+          Chef::Config[:cleanup_file_cache] = false
           @chef_client = Chef::Client.new(@chef_client_json, [@single_recipe])
           @single_recipe = nil
         else
